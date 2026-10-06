@@ -11,10 +11,13 @@ class Database:
         )
 
         # Initialize persistent client
-        self.client = chromadb.PersistentClient(path=Config.PERSISTENT_DIR) #news
-        
+        self.client = chromadb.PersistentClient(path=Config.PERSISTENT_DIR)
+
         self.collection = self.client.get_or_create_collection(
-            name=Config.COLLECTION_NAME, embedding_function=self.openai_ef
+            name=Config.COLLECTION_NAME,
+            embedding_function=self.openai_ef,
+            # TIP: per forzare la distanza tra 0 e 1 aggiungi qui sotto
+            # metadata={"hnsw:space": "cosine"},
         )
 
     def add_documents(self, documents, metadatas, ids):
@@ -30,11 +33,15 @@ class Database:
 
         if result and result["metadatas"]:
             for metadata in result["metadatas"]:
-                if metadata["source"] not in tracked_files:
-                    tracked_files[metadata["source"]] = {
-                        "hash": metadata["hash"],
-                        "last_modified": metadata["last_modified"],
-                        "source": metadata["source"],
+                source = metadata.get("source")
+                if not source:
+                    continue
+
+                if source not in tracked_files:
+                    tracked_files[source] = {
+                        "hash": metadata.get("hash"),
+                        "last_modified": metadata.get("last_modified"),
+                        "source": source,
                     }
 
         return tracked_files
@@ -44,3 +51,19 @@ class Database:
         result = self.collection.get(where={"source": source})
         if result and result["ids"]:
             self.collection.delete(ids=result["ids"])
+
+    def get_stats(self):
+        """Statistiche della collezione, come stringa"""
+        result = self.collection.get()
+
+        # Il set elimina i duplicati: un file ha più chunk ma conta una volta
+        valori_distinti = {
+            m["source"] for m in (result["metadatas"] or []) if m.get("source")
+        }
+        numero_files = len(valori_distinti)
+
+        return f"""
+            Nome Collezione: {self.collection.name}
+            Numero totale Frammenti: {self.collection.count()}
+            Numero Files Elaborati: {numero_files}
+        """

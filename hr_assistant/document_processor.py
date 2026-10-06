@@ -2,7 +2,6 @@
 import os
 import uuid
 import hashlib
-from datetime import datetime
 from config import Config
 
 
@@ -10,10 +9,9 @@ class DocumentProcessor:
 
     @staticmethod
     def read_first_lines(file_path, n_lines=100):
-        with open(file_path, "r") as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             return [line.strip() for line, _ in zip(file, range(n_lines))]
 
-    
     @staticmethod
     def get_file_hash(file_path):
         """Calculate MD5 hash of file content"""
@@ -39,7 +37,7 @@ class DocumentProcessor:
         metadatas = []
         ids = []
 
-        with open(file_path, "r") as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             chunks = file.read().replace("\n", ".").split("### ")
             file_metadata = DocumentProcessor.get_document_metadata(file_path)
 
@@ -60,22 +58,22 @@ class DocumentProcessor:
         # numeri = [1, 2, 3, 4, 5]
         # quadrati = {n: n**2 for n in numeri if n % 2 == 0}
         # print(quadrati)  # Output: {2: 4, 4: 16}
-        
+
         # Get current files in directory
         current_files = {
             f: DocumentProcessor.get_document_metadata(
                 os.path.join(Config.DOCUMENTS_DIR, f)
             )
-            for f in os.listdir(Config.DOCUMENTS_DIR) if f.endswith(".txt")
+            for f in os.listdir(Config.DOCUMENTS_DIR)
+            if f.endswith(".txt")
         }
         print("Current files in directory:", current_files)
-        
+
         # Get existing files from database
         existing_files = db.get_tracked_files()
         print("Existing files in db:", existing_files)
 
         # Identify files to add, update, and remove
-        # 
         files_to_add = set(current_files.keys()) - set(existing_files.keys())
         print("Files to add:", files_to_add)
 
@@ -90,8 +88,11 @@ class DocumentProcessor:
         print("Files to update:", files_to_update)
 
         # Process updates
-        #foreach([["add"=> $files_to_add],["update" => $files_to_update]] as $action => $files )
-        for action, files in [("add", files_to_add), ("update", files_to_update)]: # TIP: come sarebbe in php?
+        # In PHP sarebbe:
+        # foreach (["add" => $files_to_add, "update" => $files_to_update] as $action => $files) {
+        #     foreach ($files as $filename) { ... }
+        # }
+        for action, files in [("add", files_to_add), ("update", files_to_update)]:
             for filename in files:
                 file_path = os.path.join(Config.DOCUMENTS_DIR, filename)
                 documents, metadatas, ids = DocumentProcessor.process_single_document(
@@ -104,7 +105,6 @@ class DocumentProcessor:
 
                 # Add new entries
                 if documents:
-                    # Add documents to database
                     db.add_documents(documents, metadatas, ids)
 
         # Remove deleted files from database
