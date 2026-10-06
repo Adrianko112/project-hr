@@ -33,6 +33,19 @@ $ chainlit run hr_assistant/__init__.py -w
 ```
 
 
+## Embedding in locale
+
+Il provider degli embedding si sceglie in `hr_assistant/config.py` (`EMBEDDING_PROVIDER`: `openai`, `local`, `ollama`).
+Per `local` servono le librerie:
+
+```
+$ poetry add torch
+$ poetry add sentence-transformers
+```
+
+Per `ollama` serve il modello scaricato, ad esempio `ollama pull nomic-embed-text`.
+Cambiando provider o modello i vettori non sono più compatibili: cancellare `data/chromadb` e riavviare.
+
 ## Esecuzione modelli in locale
 
 ```

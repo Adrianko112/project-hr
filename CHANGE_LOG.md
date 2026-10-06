@@ -13,3 +13,7 @@
 ## 06
 
 - Refactoring Semantic Chunking
+
+## 06.1
+
+- Embedding intercambiabili: OpenAI, SentenceTransformer in locale, Ollama

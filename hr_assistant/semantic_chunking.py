@@ -1,8 +1,7 @@
 import re
 import numpy as np
-from langchain_openai import OpenAIEmbeddings
 from sklearn.metrics.pairwise import cosine_similarity
-from config import Config
+from custom_embedding import CustomEmbeddingFunction
 #
 # Spiegazione Generale della Logica:
 # Questo codice implementa un sistema di "semantic chunking", ovvero un modo intelligente di dividere un testo lungo in parti più piccole (chunk) che hanno senso semantico. Invece di dividere il testo in modo meccanico (per esempio ogni 500 caratteri), questo sistema usa l'intelligenza artificiale per capire dove il significato del testo cambia significativamente. Lo fa analizzando ogni frase nel suo contesto e utilizzando gli embedding di OpenAI per misurare quanto due frasi consecutive sono semanticamente diverse. Quando trova un punto dove la differenza semantica è particolarmente alta (sopra il 95° percentile per default), usa quel punto come confine per creare un nuovo chunk. Questo approccio è particolarmente utile per sistemi di elaborazione del linguaggio naturale, come chatbot o sistemi di ricerca, perché permette di mantenere insieme le parti di testo che sono semanticamente correlate.
@@ -10,10 +9,19 @@ from config import Config
 
 
 class SemanticChunking:
+    # Condivisa tra le istanze: un modello locale non va ricaricato per ogni file
+    _embedding_function = None
+
     def __init__(self, breakpoint_percentile=95, buffer_size=1):
-        self.embeddings = OpenAIEmbeddings(openai_api_key=Config.OPENAI_KEY)
+        if SemanticChunking._embedding_function is None:
+            SemanticChunking._embedding_function = CustomEmbeddingFunction()
+        self.embeddings = SemanticChunking._embedding_function
         self.breakpoint_percentile = breakpoint_percentile
         self.buffer_size = buffer_size
+
+    @staticmethod
+    def chunk_it(text, breakpoint_percentile=95, buffer_size=1):
+        return SemanticChunking(breakpoint_percentile, buffer_size).chunk_text(text)
 
     def _process_sentences(self, text):
         # Divide il testo in frasi e crea una lista di dizionari con indici
@@ -35,7 +43,7 @@ class SemanticChunking:
 
     def _calculate_distances(self, sentences):
         # Calcola gli embedding per tutte le frasi combinate
-        embeddings = self.embeddings.embed_documents(
+        embeddings = self.embeddings(
             [s["combined_sentence"] for s in sentences]
         )
 
@@ -50,6 +58,8 @@ class SemanticChunking:
     def chunk_text(self, text):
         # Processa le frasi
         sentences = self._process_sentences(text)
+        if len(sentences) < 2:
+            return [text]
         print("SENTENCES:",sentences[:2])
         # Calcola le distanze
         distances = self._calculate_distances(sentences)

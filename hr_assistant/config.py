@@ -11,7 +11,11 @@ class Config:
     PERSISTENT_DIR = "data/chromadb"
 
     # Embedding
-    MODEL_NAME = "text-embedding-3-small"
+    # provider: "openai", "local" (SentenceTransformer) oppure "ollama"
+    # cambiando provider/modello bisogna cancellare data/chromadb e reindicizzare
+    EMBEDDING_PROVIDER = "openai"
+    MODEL_NAME = "text-embedding-3-small"  # local: "all-mpnet-base-v2", ollama: "nomic-embed-text"
+    MODEL_PATH = "modelli/mio_modello"  # solo per provider "local"
     OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
     # Completamento

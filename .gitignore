@@ -15,3 +15,5 @@ Thumbs.db
 .idea/
 
 .venv/
+# Modelli scaricati in locale
+modelli/
