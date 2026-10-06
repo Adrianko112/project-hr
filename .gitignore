@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.env
+
+# Database vettoriale locale (dati generati, non serve versionarli)
+data/chromadb/
+chroma.sqlite3
+
+# File di sistema
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+.venv/
