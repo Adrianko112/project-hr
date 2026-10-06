@@ -21,7 +21,7 @@ print(f"Document sync complete: {added} added, {updated} updated, {removed} remo
 async def on_db_stats(action: cl.Action):
     db_info = db.get_stats()
     response = await LLMHelper.get_db_stats(db_info)
-    await cl.Message(content=response).send()
+    await cl.Message(author="system_assistant", content=response).send()
 
 
 @cl.action_callback("db_reindex")
@@ -31,7 +31,7 @@ async def on_db_reindex(action: cl.Action):
         "DB reindicizzato con successo. "
         f"Document sync complete: {added} added, {updated} updated, {removed} removed"
     )
-    await cl.Message(content=message).send()
+    await cl.Message(author="system_assistant", content=message).send()
 
 
 @cl.action_callback("db_remove")
@@ -39,7 +39,7 @@ async def on_db_remove(action: cl.Action):
     db.delete_collection()
     cl.user_session.set("last_cv_context", None)
     message = "Il database è stato completamente svuotato. Lancia il reindex per ricostruirlo."
-    await cl.Message(content=message).send()
+    await cl.Message(author="system_assistant", content=message).send()
 
 
 def save_uploaded_files(elements):
@@ -62,25 +62,25 @@ async def start():
     actions = [
         cl.Action(
             name="db_stats",
-            icon="mouse-pointer-click",
+            icon="database",
             payload={"value": "db_stats"},
             label="Statistiche Database",
         ),
         cl.Action(
             name="db_reindex",
-            icon="mouse-pointer-click",
+            icon="refresh-cw",
             payload={"value": "db_reindex"},
             label="Reindex Database",
         ),
         cl.Action(
             name="db_remove",
-            icon="mouse-pointer-click",
+            icon="trash-2",
             payload={"value": "db_remove"},
             label="Svuota Database",
         ),
     ]
 
-    await cl.Message(content="Informazioni del sistema:", actions=actions).send()
+    await cl.Message(author="system_assistant", content="Informazioni del sistema:", actions=actions).send()
 
     cl.user_session.set(
         "messages",
@@ -104,13 +104,14 @@ async def handle_message(message: cl.Message):
         if saved:
             added, updated, removed = DocumentProcessor.process_documents(db)
             await cl.Message(
+                author="system_assistant",
                 content=(
                     f"Caricati {len(saved)} file: {', '.join(saved)}. "
                     f"Document sync complete: {added} added, {updated} updated, {removed} removed"
                 )
             ).send()
         else:
-            await cl.Message(content="Nessun file caricato: formato non supportato.").send()
+            await cl.Message(author="system_assistant", content="Nessun file caricato: formato non supportato.").send()
 
         # Solo allegati, senza domanda
         if not message.content.strip():
@@ -128,7 +129,7 @@ async def handle_message(message: cl.Message):
     else:
         results = db.query(user_question, 3)
         if not results["documents"][0]:
-            await cl.Message(content="Nessun curriculum trovato per la richiesta.").send()
+            await cl.Message(author="hr_assistant", content="Nessun curriculum trovato per la richiesta.").send()
             return
 
         filename = results["metadatas"][0][0]["source"]
@@ -147,7 +148,7 @@ async def handle_message(message: cl.Message):
     messages = cl.user_session.get("messages", [])
     messages.append({"role": "user", "content": prompt})
 
-    response_message = cl.Message(content="")
+    response_message = cl.Message(author="hr_assistant", content="")
     await response_message.send()
 
     try:
@@ -164,7 +165,7 @@ async def handle_message(message: cl.Message):
 
     except Exception as e:
         error_message = f"An error occurred: {str(e)}"
-        await cl.Message(content=error_message).send()
+        await cl.Message(author="hr_assistant", content=error_message).send()
         print(error_message)
 
     cl.user_session.set("messages", messages)
@@ -173,5 +174,6 @@ async def handle_message(message: cl.Message):
 @cl.on_chat_end
 async def end():
     await cl.Message(
+        author="system_assistant",
         content="Grazie per aver utilizzato il nostro assistente. Buona giornata!"
     ).send()

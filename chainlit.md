@@ -1,14 +1,15 @@
-# Welcome to Chainlit! 🚀🤖
+# HR Assistant
 
-Hi there, Developer! 👋 We're excited to have you on board. Chainlit is a powerful tool designed to help you prototype, debug and share applications built on top of LLMs.
+Assistente per la ricerca di candidati tra i curriculum indicizzati.
 
-## Useful Links 🔗
+## Come si usa
 
-- **Documentation:** Get started with our comprehensive [Chainlit Documentation](https://docs.chainlit.io) 📚
-- **Discord Community:** Join our friendly [Chainlit Discord](https://discord.gg/k73SQ3FyUh) to ask questions, share your projects, and connect with other developers! 💬
+- **Cerca un candidato**: descrivi il profilo che ti serve, ad esempio *"Cercami un candidato con competenze da saldatore"*.
+- **Fai domande sul candidato trovato**: dopo una ricerca puoi chiedere dettagli, ad esempio *"Che esperienze ha avuto?"*.
+- **Carica nuovi curriculum**: allega uno o più file al messaggio. Sono supportati txt, pdf, doc/docx, ppt/pptx, xls/xlsx, csv, html, json, xml e zip.
 
-We can't wait to see what you create with Chainlit! Happy coding! 💻😊
+## Pulsanti
 
-## Welcome screen
-
-To modify the welcome screen, edit the `chainlit.md` file at the root of your project. If you do not want a welcome screen, just leave this file empty.
+- **Statistiche Database**: riepilogo dei curriculum e dei frammenti indicizzati.
+- **Reindex Database**: sincronizza il database con i file presenti in `resumes/`.
+- **Svuota Database**: elimina tutti i frammenti indicizzati (poi serve il reindex).
