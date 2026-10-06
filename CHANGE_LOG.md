@@ -17,3 +17,7 @@
 ## 06.1
 
 - Embedding intercambiabili: OpenAI, SentenceTransformer in locale, Ollama
+
+## 06.2
+
+- User intent: distinzione tra ricerca di un CV e domande su un CV già trovato

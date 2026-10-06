@@ -45,6 +45,39 @@ class LLMHelper:
         return response.choices[0].message.content
 
     @staticmethod
+    def classify_intent(question):
+        """Ritorna "info_cv" se la domanda riguarda il CV già trovato, altrimenti "search_cv" """
+        response = client.chat.completions.create(
+            model=Config.LLM_MODEL_LOW,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""
+                      Classifica la richiesta dell'utente in una di queste categorie:
+                      - search_cv: sta cercando un candidato con determinate competenze o caratteristiche
+                      - info_cv: sta chiedendo informazioni su un candidato già trovato in precedenza
+                      Richiesta: [[[ {question} ]]]
+                      Rispondi solo con search_cv oppure info_cv, senza altro testo.
+                      """,
+                }
+            ],
+        )
+        intent = response.choices[0].message.content.strip().lower()
+        return "info_cv" if "info_cv" in intent else "search_cv"
+
+    @staticmethod
+    def create_info_prompt(context, question):
+        return f"""
+            Dato il seguente contesto sul candidato: 
+            [[[
+            {context}
+            ]]].
+            Rispondi alla domanda dell'utente: [[[ {question}]]].
+            Rispondi in modo conciso, fornendo solo l'informazione richiesta.
+            Se l'informazione non è presente nel contesto non inventare.
+        """
+
+    @staticmethod
     def create_prompt(context, question):
         return f"""
             Dato il seguente contesto: 

@@ -69,20 +69,32 @@ async def start():
 @cl.on_message
 async def handle_message(message: cl.Message):
     user_question = message.content
-    results = db.query(user_question, 3)
+    last_context = cl.user_session.get("last_cv_context")
 
-    filename = results["metadatas"][0][0]["source"]
-    candidate_info = DocumentProcessor.read_first_lines(
-        os.path.join(Config.DOCUMENTS_DIR, filename), 10
-    )
+    # Senza un CV già trovato non c'è nulla su cui chiedere info: si cerca sempre
+    intent = LLMHelper.classify_intent(user_question) if last_context else "search_cv"
 
-    context = (
-        f"CONTESTO: nome file {filename} "
-        f"ecco il paragrafo piu' significativo: {results['documents'][0][0]}, "
-        f"qui trovi le informazioni del candidato: {candidate_info}"
-    )
+    if intent == "info_cv":
+        context = last_context
+        prompt = LLMHelper.create_info_prompt(context, user_question)
+    else:
+        results = db.query(user_question, 3)
+        if not results["documents"][0]:
+            await cl.Message(content="Nessun curriculum trovato per la richiesta.").send()
+            return
 
-    prompt = LLMHelper.create_prompt(context, user_question)
+        filename = results["metadatas"][0][0]["source"]
+        candidate_info = DocumentProcessor.read_first_lines(
+            os.path.join(Config.DOCUMENTS_DIR, filename), 10
+        )
+
+        context = (
+            f"CONTESTO: nome file {filename} "
+            f"ecco il paragrafo piu' significativo: {results['documents'][0][0]}, "
+            f"qui trovi le informazioni del candidato: {candidate_info}"
+        )
+        cl.user_session.set("last_cv_context", context)
+        prompt = LLMHelper.create_prompt(context, user_question)
 
     messages = cl.user_session.get("messages", [])
     messages.append({"role": "user", "content": prompt})
