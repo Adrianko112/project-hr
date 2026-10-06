@@ -1,4 +1,5 @@
 import os
+import shutil
 import chainlit as cl
 from document_processor import DocumentProcessor
 from database import Database
@@ -33,6 +34,29 @@ async def on_db_reindex(action: cl.Action):
     await cl.Message(content=message).send()
 
 
+@cl.action_callback("db_remove")
+async def on_db_remove(action: cl.Action):
+    db.delete_collection()
+    cl.user_session.set("last_cv_context", None)
+    message = "Il database è stato completamente svuotato. Lancia il reindex per ricostruirlo."
+    await cl.Message(content=message).send()
+
+
+def save_uploaded_files(elements):
+    """Sposta in DOCUMENTS_DIR i file caricati nei formati supportati, ritorna i nomi salvati"""
+    os.makedirs(Config.DOCUMENTS_DIR, exist_ok=True)
+    saved = []
+
+    for element in elements:
+        name = os.path.basename(element.name)
+        if not getattr(element, "path", None) or not DocumentProcessor.is_supported(name):
+            continue
+        shutil.move(element.path, os.path.join(Config.DOCUMENTS_DIR, name))
+        saved.append(name)
+
+    return saved
+
+
 @cl.on_chat_start
 async def start():
     actions = [
@@ -47,6 +71,12 @@ async def start():
             icon="mouse-pointer-click",
             payload={"value": "db_reindex"},
             label="Reindex Database",
+        ),
+        cl.Action(
+            name="db_remove",
+            icon="mouse-pointer-click",
+            payload={"value": "db_remove"},
+            label="Svuota Database",
         ),
     ]
 
@@ -68,6 +98,24 @@ async def start():
 
 @cl.on_message
 async def handle_message(message: cl.Message):
+    # File allegati: si salvano in resumes e si aggiorna il database
+    if message.elements:
+        saved = save_uploaded_files(message.elements)
+        if saved:
+            added, updated, removed = DocumentProcessor.process_documents(db)
+            await cl.Message(
+                content=(
+                    f"Caricati {len(saved)} file: {', '.join(saved)}. "
+                    f"Document sync complete: {added} added, {updated} updated, {removed} removed"
+                )
+            ).send()
+        else:
+            await cl.Message(content="Nessun file caricato: formato non supportato.").send()
+
+        # Solo allegati, senza domanda
+        if not message.content.strip():
+            return
+
     user_question = message.content
     last_context = cl.user_session.get("last_cv_context")
 

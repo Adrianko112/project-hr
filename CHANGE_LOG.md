@@ -26,3 +26,8 @@
 
 - Lettura di file di tipo diverso (pdf, docx, pptx, xlsx, csv, html, zip...) con MarkItDown
 - Semantic Chunking: _split_into_sentences per evitare che un file produca una sola frase
+
+## 08
+
+- Upload di uno o più file in resumes da interfaccia, con aggiornamento del database degli embeddings
+- Nuova action per svuotare il database
