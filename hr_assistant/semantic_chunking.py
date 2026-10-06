@@ -3,130 +3,69 @@ import numpy as np
 from langchain_openai import OpenAIEmbeddings
 from sklearn.metrics.pairwise import cosine_similarity
 from config import Config
-
-
-# def old_chunking(txt):
-#     return txt.replace("\n", ".").split("### ")
+#
+# Spiegazione Generale della Logica:
+# Questo codice implementa un sistema di "semantic chunking", ovvero un modo intelligente di dividere un testo lungo in parti più piccole (chunk) che hanno senso semantico. Invece di dividere il testo in modo meccanico (per esempio ogni 500 caratteri), questo sistema usa l'intelligenza artificiale per capire dove il significato del testo cambia significativamente. Lo fa analizzando ogni frase nel suo contesto e utilizzando gli embedding di OpenAI per misurare quanto due frasi consecutive sono semanticamente diverse. Quando trova un punto dove la differenza semantica è particolarmente alta (sopra il 95° percentile per default), usa quel punto come confine per creare un nuovo chunk. Questo approccio è particolarmente utile per sistemi di elaborazione del linguaggio naturale, come chatbot o sistemi di ricerca, perché permette di mantenere insieme le parti di testo che sono semanticamente correlate.
+#
 
 
 class SemanticChunking:
-    def calculate_cosine_distances(sentences):
-        distances = []
-        for i in range(len(sentences) - 1):
-            embedding_current = sentences[i]["combined_sentence_embedding"]
-            embedding_next = sentences[i + 1]["combined_sentence_embedding"]
+    def __init__(self, breakpoint_percentile=95, buffer_size=1):
+        self.embeddings = OpenAIEmbeddings(openai_api_key=Config.OPENAI_KEY)
+        self.breakpoint_percentile = breakpoint_percentile
+        self.buffer_size = buffer_size
 
-            # Calculate cosine similarity
-            similarity = cosine_similarity([embedding_current], [embedding_next])[0][0]
+    def _process_sentences(self, text):
+        # Divide il testo in frasi e crea una lista di dizionari con indici
+        sentences = [
+            {"sentence": s, "index": i} for i, s in enumerate(re.split(r"(?<=[.?!])\s+", text))
+        ]
 
-            # Convert to cosine distance
-            distance = 1 - similarity
-
-            # Append cosine distance to the list
-            distances.append(distance)
-
-            # Store distance in the dictionary
-            sentences[i]["distance_to_next"] = distance
-
-        # Optionally handle the last sentence
-        # sentences[-1]['distance_to_next'] = None  # or a default value
-
-        return distances, sentences
-
-    def combine_sentences(sentences, buffer_size=1):
-        # Go through each sentence dict
-        for i in range(len(sentences)):
-
-            # Create a string that will hold the sentences which are joined
-            combined_sentence = ""
-
-            # Add sentences BEFORE the current one, based on the buffer size.
-            for j in range(i - buffer_size, i):
-                # Check if the index j is not negative (to avoid index out of range like on the first one)
-                if j >= 0:
-                    # Add the sentence at index j to the combined_sentence string
-                    combined_sentence += sentences[j]["sentence"] + " "
-
-            # Add the current sentence
-            combined_sentence += sentences[i]["sentence"]
-
-            # Add sentences AFTER the current one, based on the buffer size
-            for j in range(i + 1, i + 1 + buffer_size):
-                # Check if the index j is within the range of the sentences list
-                if j < len(sentences):
-                    # Add the sentence at index j to the combined_sentence string
-                    combined_sentence += " " + sentences[j]["sentence"]
-
-            # Then add the whole thing to your dict
-            # Store the combined sentence in the current sentence dict
-            sentences[i]["combined_sentence"] = combined_sentence
+        # Combina ogni frase con il suo contesto (frasi precedenti e successive)
+        for i, current in enumerate(sentences):
+            context_range = range(
+                max(0, i - self.buffer_size),
+                min(len(sentences), i + self.buffer_size + 1),
+            )
+            current["combined_sentence"] = " ".join(
+                sentences[j]["sentence"] for j in context_range
+            )
 
         return sentences
 
-    @staticmethod
-    def chunk_it(txt):
-
-        # Splitting the essay on '.', '?', and '!'
-        single_sentences_list = re.split(r"(?<=[.?!])\s+", txt)
-        print(enumerate(single_sentences_list))
-        sentences = [
-            {"sentence": x, "index": i} for i, x in enumerate(single_sentences_list)
-        ]
-        print(sentences)
-        sentences = SemanticChunking.combine_sentences(sentences)
-        print(sentences)
-        oaiembeds = OpenAIEmbeddings(
-            openai_api_key= Config.OPENAI_KEY
+    def _calculate_distances(self, sentences):
+        # Calcola gli embedding per tutte le frasi combinate
+        embeddings = self.embeddings.embed_documents(
+            [s["combined_sentence"] for s in sentences]
         )
 
-        embeddings = oaiembeds.embed_documents(
-            [x["combined_sentence"] for x in sentences]
-        )
+        # Calcola le distanze coseno tra frasi consecutive
+        distances = []
+        for i in range(len(sentences) - 1):
+            distance = 1 - cosine_similarity([embeddings[i]], [embeddings[i + 1]])[0][0]
+            distances.append(distance)
 
-        for i, sentence in enumerate(sentences):
-            sentence["combined_sentence_embedding"] = embeddings[i]
+        return distances
 
-        distances, sentences = SemanticChunking.calculate_cosine_distances(sentences)
+    def chunk_text(self, text):
+        # Processa le frasi
+        sentences = self._process_sentences(text)
+        print("SENTENCES:",sentences[:2])
+        # Calcola le distanze
+        distances = self._calculate_distances(sentences)
+        print("DISTANCES:",distances[:2])
 
-        # We need to get the distance threshold that we'll consider an outlier
-        # We'll use numpy .percentile() for this
-        breakpoint_percentile_threshold = 95
-        breakpoint_distance_threshold = np.percentile(
-            distances, breakpoint_percentile_threshold
-        )  # If you want more chunks, lower the percentile cutoff
-
-        # Then we'll see how many distances are actually above this one
-        num_distances_above_theshold = len(
-            [x for x in distances if x > breakpoint_distance_threshold]
-        )  # The amount of distances above your threshold
-
-        # Then we'll get the index of the distances that are above the threshold. This will tell us where we should split our text
-        indices_above_thresh = [
-            i for i, x in enumerate(distances) if x > breakpoint_distance_threshold
-        ]  # The indices of those breakpoints on your list
-
-        # Initialize the start index
-        start_index = 0
-
-        # Create a list to hold the grouped sentences
+        # Determina i punti di divisione basati sul percentile
+        threshold = np.percentile(distances, self.breakpoint_percentile)
+        split_points = [i for i, d in enumerate(distances) if d > threshold]
+        print("SPLIT POINTS: ",split_points)
+        # Crea i chunk finali
         chunks = []
-
-        # Iterate through the breakpoints to slice the sentences
-        for index in indices_above_thresh:
-            # The end index is the current breakpoint
-            end_index = index
-
-            # Slice the sentence_dicts from the current start index to the end index
-            group = sentences[start_index : end_index + 1]
-            combined_text = " ".join([d["sentence"] for d in group])
-            chunks.append(combined_text)
-
-            # Update the start index for the next group
-            start_index = index + 1
-
-        # The last group, if any sentences remain
-        if start_index < len(sentences):
-            combined_text = " ".join([d["sentence"] for d in sentences[start_index:]])
-            chunks.append(combined_text)
+        start = 0
+        for point in split_points + [len(sentences) - 1]:
+            chunk = " ".join(s["sentence"] for s in sentences[start : point + 1])
+            print("CHUNK: ",chunk)
+            chunks.append(chunk)
+            start = point + 1
 
         return chunks
