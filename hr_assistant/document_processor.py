@@ -2,16 +2,93 @@
 import os
 import uuid
 import hashlib
+import tempfile
+from zipfile import ZipFile
 from config import Config
 from semantic_chunking import SemanticChunking
 
 
 class DocumentProcessor:
+    # Estensione -> tipo di file. I .txt si leggono direttamente, il resto con MarkItDown
+    SUPPORTED_EXTENSIONS = {
+        ".txt": "text",
+        ".pdf": "document",
+        ".doc": "document",
+        ".docx": "document",
+        ".ppt": "presentation",
+        ".pptx": "presentation",
+        ".xls": "spreadsheet",
+        ".xlsx": "spreadsheet",
+        ".html": "web",
+        ".htm": "web",
+        ".csv": "data",
+        ".json": "data",
+        ".xml": "data",
+        ".zip": "archive",
+    }
+
+    _md_converter = None
+
+    @staticmethod
+    def get_extension(file_path):
+        return os.path.splitext(file_path)[1].lower()
+
+    @staticmethod
+    def is_supported(file_path):
+        return DocumentProcessor.get_extension(file_path) in DocumentProcessor.SUPPORTED_EXTENSIONS
+
+    @staticmethod
+    def _convert_to_markdown(file_path):
+        """Converte un file (pdf, docx, xlsx...) in markdown con MarkItDown"""
+        # Import qui così chi usa solo file .txt non deve installare markitdown
+        from markitdown import MarkItDown
+
+        if DocumentProcessor._md_converter is None:
+            DocumentProcessor._md_converter = MarkItDown()
+
+        try:
+            return DocumentProcessor._md_converter.convert(file_path).text_content
+        except Exception as e:
+            print(f"Errore nella conversione di {file_path}: {e}")
+            return ""
+
+    @staticmethod
+    def _read_zip(file_path):
+        """Unisce il contenuto dei file supportati dentro uno zip"""
+        content = ""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with ZipFile(file_path, "r") as zip_file:
+                zip_file.extractall(temp_dir)
+
+            for root, _, files in os.walk(temp_dir):
+                for name in files:
+                    inner_path = os.path.join(root, name)
+                    # niente zip dentro lo zip
+                    if not DocumentProcessor.is_supported(inner_path) or name.lower().endswith(".zip"):
+                        continue
+                    text = DocumentProcessor.read_content(inner_path)
+                    if text:
+                        content += f"\n\nFile: {name}\n{text}"
+        return content
+
+    @staticmethod
+    def read_content(file_path):
+        """Testo completo di un file, qualunque sia il formato supportato"""
+        extension = DocumentProcessor.get_extension(file_path)
+
+        if extension == ".txt":
+            with open(file_path, "r", encoding="utf-8") as file:
+                return file.read()
+        if extension == ".zip":
+            return DocumentProcessor._read_zip(file_path)
+        if extension in DocumentProcessor.SUPPORTED_EXTENSIONS:
+            return DocumentProcessor._convert_to_markdown(file_path)
+        return ""
 
     @staticmethod
     def read_first_lines(file_path, n_lines=100):
-        with open(file_path, "r", encoding="utf-8") as file:
-            return [line.strip() for line, _ in zip(file, range(n_lines))]
+        lines = DocumentProcessor.read_content(file_path).splitlines()
+        return [line.strip() for line in lines[:n_lines]]
 
     @staticmethod
     def get_file_hash(file_path):
@@ -25,10 +102,13 @@ class DocumentProcessor:
     @staticmethod
     def get_document_metadata(file_path):
         """Get document metadata including hash and last modified time"""
+        extension = DocumentProcessor.get_extension(file_path)
         return {
             "hash": DocumentProcessor.get_file_hash(file_path),
             "last_modified": os.path.getmtime(file_path),
             "source": os.path.basename(file_path),
+            "file_type": DocumentProcessor.SUPPORTED_EXTENSIONS.get(extension, "unknown"),
+            "extension": extension,
         }
 
     @staticmethod
@@ -69,7 +149,7 @@ class DocumentProcessor:
                 os.path.join(Config.DOCUMENTS_DIR, f)
             )
             for f in os.listdir(Config.DOCUMENTS_DIR)
-            if f.endswith(".txt")
+            if DocumentProcessor.is_supported(f)
         }
         print("Current files in directory:", current_files)
 

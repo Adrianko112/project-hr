@@ -46,6 +46,17 @@ $ poetry add sentence-transformers
 Per `ollama` serve il modello scaricato, ad esempio `ollama pull nomic-embed-text`.
 Cambiando provider o modello i vettori non sono più compatibili: cancellare `data/chromadb` e riavviare.
 
+## Lettura di file di tipo diverso
+
+Oltre ai `.txt`, in `resumes/` si possono mettere pdf, docx, pptx, xlsx, csv, html, json, xml e zip.
+La conversione in testo è fatta con [MarkItDown](https://github.com/microsoft/markitdown):
+
+```
+$ poetry add "markitdown[all]"
+```
+
+Dentro uno zip vengono letti i file dei formati supportati. I file che non si riescono a convertire vengono saltati.
+
 ## Esecuzione modelli in locale
 
 ```

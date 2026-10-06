@@ -23,10 +23,26 @@ class SemanticChunking:
     def chunk_it(text, breakpoint_percentile=95, buffer_size=1):
         return SemanticChunking(breakpoint_percentile, buffer_size).chunk_text(text)
 
+    @staticmethod
+    def _split_into_sentences(text):
+        text = text.strip()
+        sentences = re.split(r"(?<=[.?!])\s+", text)
+
+        # File come pdf, xlsx o csv convertiti in markdown possono non avere punteggiatura:
+        # se esce una sola frase lunga si prova con a capo, ; e :, poi con la virgola
+        if len(sentences) == 1 and len(text) > 100:
+            sentences = re.split(r"(?<=[;:])\s+|\n+", text)
+            if len(sentences) == 1:
+                sentences = re.split(r"(?<=,)\s+", text)
+
+        sentences = [s.strip() for s in sentences if s.strip()]
+        return sentences or [text]
+
     def _process_sentences(self, text):
         # Divide il testo in frasi e crea una lista di dizionari con indici
         sentences = [
-            {"sentence": s, "index": i} for i, s in enumerate(re.split(r"(?<=[.?!])\s+", text))
+            {"sentence": s, "index": i}
+            for i, s in enumerate(self._split_into_sentences(text))
         ]
 
         # Combina ogni frase con il suo contesto (frasi precedenti e successive)
