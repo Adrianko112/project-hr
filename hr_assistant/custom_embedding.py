@@ -1,5 +1,4 @@
 import os
-import ollama
 from chromadb.api.types import EmbeddingFunction
 from chromadb.utils import embedding_functions
 from config import Config
@@ -55,5 +54,8 @@ class CustomEmbeddingFunction(EmbeddingFunction):
 
         if self.provider == "local":
             return self.model.encode(input).tolist()
+
+        # Import qui così chi usa solo OpenAI non deve installare ollama
+        import ollama
 
         return ollama.embed(model=self.model_name, input=list(input))["embeddings"]
